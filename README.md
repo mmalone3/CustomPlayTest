@@ -2,7 +2,7 @@
 
 A standalone, single-file HTML5 Canvas combat sandbox and playtesting lab for **Ghostman**, featuring real-time enemy spawners, customizable parameters, stopwatch timer, debug tools, and procedural Web Audio sound effects.
 
-🎮 **Play directly on GitHub Pages**: [Launch Sandbox](https://mmalone3.github.io/CustomPlayTest/)
+🎮 **Play directly on GitHub Pages**: https://mmalone3.github.io/CustomPlayTest
 
 ---
 
