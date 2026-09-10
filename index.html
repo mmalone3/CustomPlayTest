@@ -1,0 +1,1702 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ghostman: Custom Sandbox & Enemy Builder</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050711;
+      --panel: rgba(8, 13, 28, 0.86);
+      --panel-strong: rgba(12, 20, 43, 0.96);
+      --cyan: #00e5ff;
+      --violet: #d946ef;
+      --orange: #ff9e00;
+      --green: #35ff89;
+      --yellow: #ffe45e;
+      --red: #ff3864;
+      --text: #e8f6ff;
+      --muted: #89a2b8;
+      --line: rgba(124, 221, 255, 0.22);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 22% 18%, rgba(0, 229, 255, 0.12), transparent 28%),
+        radial-gradient(circle at 82% 78%, rgba(217, 70, 239, 0.11), transparent 33%),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      user-select: none;
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    .hud {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 3;
+      display: grid;
+      gap: 8px;
+      min-width: 310px;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(6, 11, 23, 0.86), rgba(8, 13, 32, 0.62));
+      box-shadow: 0 0 28px rgba(0, 229, 255, 0.08), inset 0 0 24px rgba(0, 229, 255, 0.04);
+      backdrop-filter: blur(12px);
+    }
+
+    .hud-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .timer {
+      font-size: 30px;
+      letter-spacing: 0.05em;
+      font-weight: 800;
+      color: #f8fdff;
+      text-shadow: 0 0 13px rgba(0, 229, 255, 0.8);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .subtle, .meter-label {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .stats {
+      color: #a8f5ff;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .meter {
+      height: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .fill {
+      height: 100%;
+      width: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--red), var(--yellow), var(--green));
+      box-shadow: 0 0 16px rgba(53, 255, 137, 0.45);
+      transition: width 0.12s linear;
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+      font-size: 12px;
+      color: #cae9ff;
+    }
+
+    .panel {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      bottom: 14px;
+      z-index: 4;
+      width: min(430px, calc(100vw - 28px));
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.46), 0 0 42px rgba(217, 70, 239, 0.08);
+      backdrop-filter: blur(16px);
+      transform: translateX(0);
+      transition: transform 0.22s ease;
+    }
+
+    .panel.collapsed {
+      transform: translateX(calc(100% + 16px));
+    }
+
+    .panel-toggle {
+      position: fixed;
+      right: 16px;
+      top: 16px;
+      z-index: 5;
+      display: none;
+    }
+
+    .panel.collapsed + .panel-toggle { display: inline-flex; }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 14px 10px;
+      border-bottom: 1px solid rgba(124, 221, 255, 0.14);
+    }
+
+    .title {
+      font-weight: 900;
+      letter-spacing: 0.025em;
+      line-height: 1.15;
+    }
+
+    .title span {
+      display: block;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(124, 221, 255, 0.12);
+    }
+
+    .tab {
+      padding: 8px 4px;
+      border-radius: 12px;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab.active {
+      color: #031018;
+      background: linear-gradient(135deg, var(--cyan), #83fff0);
+      box-shadow: 0 0 18px rgba(0, 229, 255, 0.22);
+    }
+
+    .panel-body {
+      overflow: auto;
+      padding: 12px;
+    }
+
+    .tab-page { display: none; }
+    .tab-page.active { display: block; }
+
+    .section {
+      margin-bottom: 14px;
+      padding: 12px;
+      border: 1px solid rgba(124, 221, 255, 0.14);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .section h3 {
+      margin: 0 0 9px;
+      font-size: 12px;
+      color: #bff7ff;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .button-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    button, select, input {
+      font: inherit;
+    }
+
+    button {
+      min-height: 34px;
+      border: 1px solid rgba(124, 221, 255, 0.24);
+      border-radius: 12px;
+      color: var(--text);
+      background: linear-gradient(135deg, rgba(0, 229, 255, 0.14), rgba(217, 70, 239, 0.1));
+      cursor: pointer;
+      transition: transform 0.08s ease, border-color 0.12s ease, background 0.12s ease;
+    }
+
+    button:hover {
+      border-color: rgba(0, 229, 255, 0.66);
+      background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(217, 70, 239, 0.18));
+    }
+
+    button:active { transform: translateY(1px) scale(0.99); }
+
+    .danger { border-color: rgba(255, 56, 100, 0.45); }
+    .good { border-color: rgba(53, 255, 137, 0.45); }
+    .warn { border-color: rgba(255, 228, 94, 0.45); }
+
+    label {
+      display: grid;
+      gap: 5px;
+      margin: 8px 0;
+      color: #d8efff;
+      font-size: 13px;
+    }
+
+    .inline {
+      display: flex;
+      gap: 9px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .inline label {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      margin: 0;
+    }
+
+    input[type="range"] { width: 100%; accent-color: var(--cyan); }
+    input[type="checkbox"] { accent-color: var(--cyan); }
+
+    input[type="number"], select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid rgba(124, 221, 255, 0.22);
+      border-radius: 12px;
+      color: var(--text);
+      background: var(--panel-strong);
+    }
+
+    .range-row {
+      display: grid;
+      grid-template-columns: 1fr 70px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .check-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .legend {
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      z-index: 3;
+      max-width: 520px;
+      padding: 10px 12px;
+      border: 1px solid rgba(124, 221, 255, 0.12);
+      border-radius: 16px;
+      color: #b7cadc;
+      background: rgba(4, 8, 18, 0.62);
+      backdrop-filter: blur(10px);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    kbd {
+      padding: 1px 5px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      color: #fff;
+      background: rgba(255,255,255,0.08);
+      font-size: 11px;
+    }
+
+    @media (max-width: 800px) {
+      .hud { min-width: 0; width: calc(100vw - 28px); }
+      .legend { display: none; }
+      .panel { top: 118px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div class="hud" aria-label="HUD">
+    <div class="hud-row">
+      <div>
+        <div class="subtle">Stopwatch</div>
+        <div class="timer" id="timer">00:00.00</div>
+      </div>
+      <div class="stats">
+        PB: <span id="best">00:00.00</span><br>
+        Hazards Active: <span id="hazardCount">0</span> | FPS: <span id="fps">60</span>
+      </div>
+    </div>
+    <div class="hud-row">
+      <button id="pauseBtn">Pause</button>
+      <button id="resetTimeBtn">Reset Stopwatch</button>
+      <button id="refillBtn" class="good">Refill HP</button>
+    </div>
+    <div>
+      <div class="hud-row meter-label"><span>HP</span><span id="hpText">100 / 100</span></div>
+      <div class="meter"><div class="fill" id="hpFill"></div></div>
+    </div>
+    <div class="mini-grid">
+      <span>Shield: <b id="shieldState">Ready</b></span>
+      <span>Vanish: <b id="vanishState">Ready</b></span>
+      <span>Partner: <b id="partnerState">Rock</b></span>
+      <span>Mode: <b id="modeState">Live</b></span>
+    </div>
+  </div>
+
+  <aside class="panel" id="panel" aria-label="Ghostman builder panel">
+    <div class="panel-head">
+      <div class="title"><span>Ghostman</span> Custom Sandbox & Enemy Builder</div>
+      <button id="collapseBtn" title="Collapse panel">Hide</button>
+    </div>
+    <nav class="tabs" aria-label="Builder tabs">
+      <button class="tab active" data-tab="quick">Quick</button>
+      <button class="tab" data-tab="custom">Custom</button>
+      <button class="tab" data-tab="auto">Auto</button>
+      <button class="tab" data-tab="debug">Debug</button>
+    </nav>
+    <div class="panel-body">
+      <section class="tab-page active" id="tab-quick">
+        <div class="section">
+          <h3>Bombs</h3>
+          <div class="button-grid">
+            <button data-action="bomb-green" class="good">Green Bomb</button>
+            <button data-action="bomb-yellow" class="warn">Yellow Bomb</button>
+            <button data-action="bomb-red" class="danger">Red Bomb</button>
+            <button data-action="bomb-cluster">Cluster of 5</button>
+          </div>
+        </div>
+        <div class="section">
+          <h3>Diamond Sparks</h3>
+          <div class="button-grid">
+            <button data-action="diamond-left">Left</button>
+            <button data-action="diamond-right">Right</button>
+            <button data-action="diamond-top">Top</button>
+            <button data-action="diamond-bottom">Bottom</button>
+            <button data-action="diamond-cross">All 4 Cross</button>
+          </div>
+        </div>
+        <div class="section">
+          <h3>Singer Rings</h3>
+          <div class="button-grid">
+            <button data-action="ring-normal">Normal</button>
+            <button data-action="ring-fast">Fast</button>
+          </div>
+        </div>
+        <div class="section">
+          <h3>Orbital Pouncers</h3>
+          <div class="button-grid">
+            <button data-action="pouncer-physical">Physical</button>
+            <button data-action="pouncer-void">Void</button>
+            <button data-action="pouncer-dual">Dual Pair</button>
+          </div>
+        </div>
+        <div class="section">
+          <h3>Kinetic Lance</h3>
+          <div class="button-grid three">
+            <button data-action="lance-horizontal">Horizontal</button>
+            <button data-action="lance-vertical">Vertical</button>
+            <button data-action="lance-targeted">Targeted</button>
+          </div>
+        </div>
+        <div class="section">
+          <h3>Phasing Void Beam</h3>
+          <div class="button-grid">
+            <button data-action="void-horizontal">Horizontal</button>
+            <button data-action="void-vertical">Vertical</button>
+            <button data-action="void-targeted">Targeted</button>
+            <button data-action="void-sweep">Room Sweep</button>
+          </div>
+        </div>
+        <div class="section">
+          <h3>Static Cardinal Grid</h3>
+          <div class="button-grid three">
+            <button data-action="grid-cross">Cross</button>
+            <button data-action="grid-hash"># Grid</button>
+            <button data-action="grid-perimeter">Room Perimeter</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-page" id="tab-custom">
+        <div class="section">
+          <h3>Parametric Spawner</h3>
+          <label>Enemy / Hazard Type
+            <select id="customKind">
+              <option value="BOMB">Bomb</option>
+              <option value="DIAMOND">Diamond Spark</option>
+              <option value="SINGER_RING">Singer Ring</option>
+              <option value="ORBITAL_POUNCER">Orbital Pouncer</option>
+              <option value="KINETIC_LANCE">Kinetic Lance</option>
+              <option value="VOID_BEAM">Phasing Void Beam</option>
+              <option value="STATIC_GRID">Static Cardinal Grid</option>
+            </select>
+          </label>
+          <label>Variant / Axis
+            <select id="customVariant">
+              <option value="green">Green / Physical / Horizontal</option>
+              <option value="yellow">Yellow / Void / Vertical</option>
+              <option value="red">Red / Targeted</option>
+              <option value="sweep">Sweep / Hash / Fast</option>
+            </select>
+          </label>
+          <label>Telegraph Time: <span id="telegraphValue">1.00s</span>
+            <input id="telegraphInput" type="range" min="0.15" max="3.5" value="1" step="0.05">
+          </label>
+          <label>Speed: <span id="speedValue">720</span>
+            <input id="speedInput" type="range" min="100" max="1600" value="720" step="10">
+          </label>
+          <label>Radius / Width: <span id="radiusValue">90</span>
+            <input id="radiusInput" type="range" min="10" max="240" value="90" step="1">
+          </label>
+          <label>Damage: <span id="damageValue">22</span>
+            <input id="damageInput" type="range" min="1" max="100" value="22" step="1">
+          </label>
+          <label>Count: <span id="countValue">1</span>
+            <input id="countInput" type="range" min="1" max="24" value="1" step="1">
+          </label>
+          <button id="spawnCustomBtn" class="good">Spawn Custom</button>
+        </div>
+      </section>
+
+      <section class="tab-page" id="tab-auto">
+        <div class="section">
+          <h3>Continuous Auto-Spawner</h3>
+          <div class="inline">
+            <button id="autoToggle">Auto-Spawn: Off</button>
+            <button id="singleRandomBtn">Spawn Random</button>
+          </div>
+          <label>Spawn Interval: <span id="autoIntervalValue">1.50s</span>
+            <input id="autoInterval" type="range" min="0.5" max="5" value="1.5" step="0.1">
+          </label>
+          <div class="check-grid" id="autoChecks">
+            <label><input type="checkbox" value="BOMB" checked> Bombs</label>
+            <label><input type="checkbox" value="DIAMOND" checked> Diamonds</label>
+            <label><input type="checkbox" value="SINGER_RING" checked> Singer Rings</label>
+            <label><input type="checkbox" value="ORBITAL_POUNCER" checked> Pouncers</label>
+            <label><input type="checkbox" value="KINETIC_LANCE" checked> Lances</label>
+            <label><input type="checkbox" value="VOID_BEAM" checked> Void Beams</label>
+            <label><input type="checkbox" value="STATIC_GRID" checked> Static Grid</label>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-page" id="tab-debug">
+        <div class="section">
+          <h3>Debug & Playtest Tools</h3>
+          <div class="inline"><label><input id="godMode" type="checkbox"> God Mode / Invincibility</label></div>
+          <div class="inline"><label><input id="noCooldowns" type="checkbox"> No Cooldowns</label></div>
+          <div class="inline"><label><input id="hitboxes" type="checkbox"> Toggle Hitbox Visualizers</label></div>
+          <label>Game Speed / Slow Motion
+            <select id="timeScale">
+              <option value="0">Freeze Enemies</option>
+              <option value="0.25">0.25x</option>
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+            </select>
+          </label>
+          <label>Player Max HP: <span id="maxHpValue">100</span>
+            <input id="maxHpInput" type="range" min="10" max="500" value="100" step="5">
+          </label>
+          <label>Partner Switcher
+            <select id="partnerSelect">
+              <option value="Rock">Rock</option>
+              <option value="Healer">Healer</option>
+              <option value="Speed">Speed</option>
+            </select>
+          </label>
+          <div class="button-grid">
+            <button id="clearBtn" class="danger">Clear All Enemies</button>
+            <button id="healBtn" class="good">Player HP Refill</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </aside>
+  <button class="panel-toggle" id="openPanelBtn">Builder</button>
+
+  <div class="legend">
+    Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> · Shield / Parry <kbd>Space</kbd> blocks bombs, diamonds, kinetic lances, and physical pouncers ·
+    Vanish <kbd>J</kbd> avoids void beams, singer waves, void pouncers, and ambient grid. Kinetic lances pierce Vanish.
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const TAU = Math.PI * 2;
+    const STORAGE_KEY = "ghostman-longest-run-v1";
+    const rand = (min, max) => min + Math.random() * (max - min);
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const angleTo = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
+    const angleDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+    const now = () => performance.now() / 1000;
+
+    let W = 1280;
+    let H = 720;
+    let dpr = 1;
+
+    const ui = {
+      timer: document.getElementById("timer"),
+      best: document.getElementById("best"),
+      hazardCount: document.getElementById("hazardCount"),
+      fps: document.getElementById("fps"),
+      hpText: document.getElementById("hpText"),
+      hpFill: document.getElementById("hpFill"),
+      shieldState: document.getElementById("shieldState"),
+      vanishState: document.getElementById("vanishState"),
+      partnerState: document.getElementById("partnerState"),
+      modeState: document.getElementById("modeState"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      resetTimeBtn: document.getElementById("resetTimeBtn"),
+      refillBtn: document.getElementById("refillBtn"),
+      panel: document.getElementById("panel"),
+      collapseBtn: document.getElementById("collapseBtn"),
+      openPanelBtn: document.getElementById("openPanelBtn"),
+      autoToggle: document.getElementById("autoToggle"),
+      autoInterval: document.getElementById("autoInterval"),
+      autoIntervalValue: document.getElementById("autoIntervalValue"),
+      customKind: document.getElementById("customKind"),
+      customVariant: document.getElementById("customVariant"),
+      telegraphInput: document.getElementById("telegraphInput"),
+      speedInput: document.getElementById("speedInput"),
+      radiusInput: document.getElementById("radiusInput"),
+      damageInput: document.getElementById("damageInput"),
+      countInput: document.getElementById("countInput"),
+      telegraphValue: document.getElementById("telegraphValue"),
+      speedValue: document.getElementById("speedValue"),
+      radiusValue: document.getElementById("radiusValue"),
+      damageValue: document.getElementById("damageValue"),
+      countValue: document.getElementById("countValue"),
+      spawnCustomBtn: document.getElementById("spawnCustomBtn"),
+      godMode: document.getElementById("godMode"),
+      noCooldowns: document.getElementById("noCooldowns"),
+      hitboxes: document.getElementById("hitboxes"),
+      timeScale: document.getElementById("timeScale"),
+      maxHpInput: document.getElementById("maxHpInput"),
+      maxHpValue: document.getElementById("maxHpValue"),
+      partnerSelect: document.getElementById("partnerSelect"),
+      clearBtn: document.getElementById("clearBtn"),
+      healBtn: document.getElementById("healBtn"),
+      singleRandomBtn: document.getElementById("singleRandomBtn"),
+      autoChecks: document.getElementById("autoChecks")
+    };
+
+    const state = {
+      hazards: [],
+      particles: [],
+      ripples: [],
+      damageTexts: [],
+      elapsed: 0,
+      best: Number(localStorage.getItem(STORAGE_KEY) || "0"),
+      paused: false,
+      autoSpawn: false,
+      autoTimer: 0,
+      fps: 60,
+      timeScale: 1,
+      hitboxes: false,
+      godMode: false,
+      noCooldowns: false,
+      partner: "Rock",
+      nextId: 1
+    };
+
+    const player = {
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      r: 15,
+      hp: 100,
+      maxHp: 100,
+      facing: -Math.PI / 2,
+      shield: 0,
+      shieldCooldown: 0,
+      vanish: 0,
+      vanishCooldown: 0,
+      hurtCooldown: 0,
+      healerUsed: false
+    };
+
+    const keys = new Set();
+
+    let audioCtx = null;
+    let masterGain = null;
+    function ensureAudio() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0.18;
+      masterGain.connect(audioCtx.destination);
+    }
+
+    function tone(freq, dur, type = "sine", gain = 0.16, slide = 0) {
+      if (!audioCtx) return;
+      const t = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(20, freq + slide), t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(g).connect(masterGain);
+      osc.start(t);
+      osc.stop(t + dur + 0.04);
+    }
+
+    function noise(dur, gain = 0.1, filterFreq = 1200) {
+      if (!audioCtx) return;
+      const len = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
+      const buffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      const src = audioCtx.createBufferSource();
+      const filter = audioCtx.createBiquadFilter();
+      const g = audioCtx.createGain();
+      filter.type = "bandpass";
+      filter.frequency.value = filterFreq;
+      g.gain.value = gain;
+      src.buffer = buffer;
+      src.connect(filter).connect(g).connect(masterGain);
+      src.start();
+    }
+
+    const sfx = {
+      shield: () => { tone(280, 0.09, "triangle", 0.12, 180); },
+      parry: () => { tone(760, 0.08, "square", 0.16, 520); noise(0.09, 0.07, 2600); },
+      vanish: () => { tone(520, 0.18, "sine", 0.12, -350); noise(0.16, 0.06, 900); },
+      tick: () => { tone(900, 0.035, "square", 0.05, 0); },
+      boom: () => { tone(92, 0.32, "sawtooth", 0.22, -42); noise(0.24, 0.16, 180); },
+      charge: () => { tone(430, 0.22, "triangle", 0.09, 360); },
+      fire: () => { tone(1280, 0.1, "sawtooth", 0.13, -500); noise(0.07, 0.06, 3600); },
+      void: () => { tone(170, 0.28, "sine", 0.12, 240); },
+      hit: () => { tone(120, 0.16, "square", 0.18, -50); noise(0.12, 0.1, 520); },
+      heal: () => { tone(450, 0.08, "sine", 0.1, 240); tone(750, 0.12, "sine", 0.08, 180); }
+    };
+
+    function resize() {
+      dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = Math.floor(W * dpr);
+      canvas.height = Math.floor(H * dpr);
+      canvas.style.width = W + "px";
+      canvas.style.height = H + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (!player.x || !player.y) {
+        player.x = W / 2;
+        player.y = H / 2;
+      }
+      player.x = clamp(player.x, 32, W - 32);
+      player.y = clamp(player.y, 32, H - 32);
+    }
+
+    function fmtTime(seconds) {
+      seconds = Math.max(0, seconds);
+      const minutes = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      const centis = Math.floor((seconds - Math.floor(seconds)) * 100);
+      return String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0") + "." + String(centis).padStart(2, "0");
+    }
+
+    function arenaPoint(margin = 70) {
+      return { x: rand(margin, W - margin), y: rand(margin, H - margin) };
+    }
+
+    function edgePoint(side, offset) {
+      if (side === "left") return { x: -30, y: offset ?? rand(80, H - 80) };
+      if (side === "right") return { x: W + 30, y: offset ?? rand(80, H - 80) };
+      if (side === "top") return { x: offset ?? rand(80, W - 80), y: -30 };
+      return { x: offset ?? rand(80, W - 80), y: H + 30 };
+    }
+
+    function addParticle(x, y, color, count = 10, speed = 160, life = 0.55, size = 2.5) {
+      for (let i = 0; i < count; i++) {
+        const a = rand(0, TAU);
+        const s = rand(speed * 0.25, speed);
+        state.particles.push({
+          x, y,
+          vx: Math.cos(a) * s,
+          vy: Math.sin(a) * s,
+          life: rand(life * 0.5, life),
+          maxLife: life,
+          color,
+          size: rand(size * 0.55, size * 1.4)
+        });
+      }
+    }
+
+    function addRipple(x, y, color, radius, width = 4, life = 0.45) {
+      state.ripples.push({ x, y, color, radius, width, life, maxLife: life });
+    }
+
+    function screenShake(amount) {
+      canvas.style.transform = `translate(${rand(-amount, amount)}px, ${rand(-amount, amount)}px)`;
+      clearTimeout(screenShake.timer);
+      screenShake.timer = setTimeout(() => { canvas.style.transform = ""; }, 65);
+    }
+
+    function shieldArc() {
+      const base = state.partner === "Rock" ? Math.PI * 0.92 : Math.PI * 0.68;
+      return base;
+    }
+
+    function shieldActive() {
+      return player.shield > 0 || (state.noCooldowns && (keys.has(" ") || keys.has("Spacebar")));
+    }
+
+    function vanishActive() {
+      return player.vanish > 0;
+    }
+
+    function shieldBlocksFrom(sourceX, sourceY) {
+      if (!shieldActive()) return false;
+      const a = Math.atan2(sourceY - player.y, sourceX - player.x);
+      return Math.abs(angleDiff(a, player.facing)) <= shieldArc() * 0.5;
+    }
+
+    function parryAt(x, y, color = "#ffffff") {
+      sfx.parry();
+      addParticle(x, y, color, 24, 360, 0.38, 3.2);
+      addRipple(player.x, player.y, color, 76, 5, 0.28);
+      if (state.partner === "Rock") {
+        addRipple(player.x, player.y, "#35ff89", 145, 7, 0.42);
+        for (const h of state.hazards) {
+          if (!h.dead && h.kind !== "SINGER_RING" && dist(player, h) < 150) h.dead = true;
+        }
+      }
+    }
+
+    function damagePlayer(amount, sourceX, sourceY, rule) {
+      if (state.godMode || player.hurtCooldown > 0) return false;
+      if (rule === "vanish" && vanishActive()) return false;
+      if (rule === "shield" && shieldBlocksFrom(sourceX, sourceY)) {
+        parryAt(sourceX, sourceY, "#00e5ff");
+        return false;
+      }
+      if (rule === "shieldOrVanish" && (vanishActive() || shieldBlocksFrom(sourceX, sourceY))) {
+        parryAt(sourceX, sourceY, "#35ff89");
+        return false;
+      }
+      if (rule === "voidVanish" && vanishActive()) return false;
+      if (rule === "lanceShield" && shieldBlocksFrom(sourceX, sourceY)) {
+        parryAt(sourceX, sourceY, "#00e5ff");
+        return false;
+      }
+      player.hp = clamp(player.hp - amount, 0, player.maxHp);
+      player.hurtCooldown = 0.55;
+      addParticle(player.x, player.y, "#ff3864", 18, 220, 0.45, 3);
+      state.damageTexts.push({ x: player.x, y: player.y - 24, text: "-" + Math.round(amount), life: 0.8 });
+      sfx.hit();
+      screenShake(6);
+      if (state.partner === "Healer" && !player.healerUsed && player.hp > 0 && player.hp <= player.maxHp * 0.25) {
+        player.healerUsed = true;
+        player.hp = clamp(player.hp + player.maxHp * 0.45, 0, player.maxHp);
+        addRipple(player.x, player.y, "#35ff89", 95, 6, 0.5);
+        addParticle(player.x, player.y, "#35ff89", 26, 180, 0.6, 3);
+        sfx.heal();
+      }
+      if (player.hp <= 0) {
+        addRipple(player.x, player.y, "#ff3864", 180, 8, 0.9);
+        player.hp = player.maxHp;
+        player.x = W / 2;
+        player.y = H / 2;
+        player.vx = player.vy = 0;
+        player.healerUsed = false;
+        state.elapsed = 0;
+      }
+      return true;
+    }
+
+    function makeBomb(variant = "green", opts = {}) {
+      const table = {
+        green: { fuse: 3.0, radius: 75, color: "#35ff89", damage: 22 },
+        yellow: { fuse: 2.0, radius: 90, color: "#ffe45e", damage: 30 },
+        red: { fuse: 1.2, radius: 115, color: "#ff3864", damage: 42 }
+      };
+      const spec = table[variant] || table.green;
+      const p = opts.pos || arenaPoint();
+      state.hazards.push({
+        id: state.nextId++,
+        kind: "BOMB",
+        variant,
+        x: p.x,
+        y: p.y,
+        fuse: opts.telegraph ?? spec.fuse,
+        maxFuse: opts.telegraph ?? spec.fuse,
+        radius: opts.radius ?? spec.radius,
+        damage: opts.damage ?? spec.damage,
+        color: spec.color,
+        tick: 0,
+        phase: "fuse"
+      });
+    }
+
+    function makeDiamond(side = "left", opts = {}) {
+      const start = edgePoint(side);
+      const horizontal = side === "left" || side === "right";
+      const dir = side === "left" ? 0 : side === "right" ? Math.PI : side === "top" ? Math.PI / 2 : -Math.PI / 2;
+      state.hazards.push({
+        id: state.nextId++,
+        kind: "DIAMOND",
+        side,
+        x: start.x,
+        y: start.y,
+        vx: Math.cos(dir) * (opts.speed ?? 980),
+        vy: Math.sin(dir) * (opts.speed ?? 980),
+        telegraph: opts.telegraph ?? 0.75,
+        maxTelegraph: opts.telegraph ?? 0.75,
+        damage: opts.damage ?? 20,
+        radius: opts.radius ?? 11,
+        color: "#00e5ff",
+        horizontal
+      });
+    }
+
+    function makeSinger(fast = false, opts = {}) {
+      state.hazards.push({
+        id: state.nextId++,
+        kind: "SINGER_RING",
+        x: W / 2,
+        y: H / 2,
+        telegraph: opts.telegraph ?? (fast ? 0.65 : 1.1),
+        maxTelegraph: opts.telegraph ?? (fast ? 0.65 : 1.1),
+        radius: Math.max(W, H) * 0.78,
+        endRadius: opts.radius ?? 42,
+        speed: opts.speed ?? (fast ? 480 : 300),
+        width: 26,
+        damage: opts.damage ?? 34,
+        color: "#f0abfc",
+        hitOnce: false
+      });
+      sfx.void();
+    }
+
+    function makePouncer(variant = "physical", opts = {}) {
+      const a = rand(0, TAU);
+      state.hazards.push({
+        id: state.nextId++,
+        kind: "ORBITAL_POUNCER",
+        variant,
+        x: player.x + Math.cos(a) * 92,
+        y: player.y + Math.sin(a) * 92,
+        orbitAngle: a,
+        orbitRadius: opts.radius ?? 92,
+        orbitLeft: opts.telegraph ?? (TAU * 2.2),
+        orbitSpeed: variant === "void" ? 5.2 : 4.4,
+        windup: 0,
+        maxWindup: 0.55,
+        vx: 0,
+        vy: 0,
+        speed: opts.speed ?? (variant === "void" ? 680 : 760),
+        damage: opts.damage ?? (variant === "void" ? 32 : 28),
+        radius: 16,
+        color: variant === "void" ? "#d946ef" : "#ff9e00",
+        phase: "orbit",
+        targetAngle: 0
+      });
+    }
+
+    function makeBeam(kind, axis = "horizontal", opts = {}) {
+      const isVoid = kind === "VOID_BEAM";
+      const color = isVoid ? "#d946ef" : "#00e5ff";
+      const width = opts.radius ?? (isVoid ? 34 : 30);
+      const target = { x: player.x, y: player.y };
+      let angle = 0;
+      let x = W / 2;
+      let y = H / 2;
+      if (axis === "horizontal") {
+        angle = 0;
+        y = target.y;
+      } else if (axis === "vertical") {
+        angle = Math.PI / 2;
+        x = target.x;
+      } else if (axis === "sweep") {
+        angle = -0.65;
+        x = W / 2;
+        y = H / 2;
+      } else {
+        angle = angleTo({ x: W / 2, y: H / 2 }, target);
+        x = W / 2;
+        y = H / 2;
+      }
+      state.hazards.push({
+        id: state.nextId++,
+        kind,
+        axis,
+        x, y,
+        angle,
+        startAngle: angle,
+        endAngle: axis === "sweep" ? Math.PI + 0.65 : angle,
+        telegraph: opts.telegraph ?? (isVoid ? 1.05 : 0.9),
+        maxTelegraph: opts.telegraph ?? (isVoid ? 1.05 : 0.9),
+        active: opts.active ?? (axis === "sweep" ? 2.4 : 0.55),
+        maxActive: opts.active ?? (axis === "sweep" ? 2.4 : 0.55),
+        width,
+        damage: opts.damage ?? (isVoid ? 38 : 36),
+        color,
+        fired: false
+      });
+      isVoid ? sfx.void() : sfx.charge();
+    }
+
+    function makeGrid(pattern = "cross", opts = {}) {
+      const lines = [];
+      if (pattern === "cross") {
+        lines.push({ x1: W / 2, y1: 0, x2: W / 2, y2: H });
+        lines.push({ x1: 0, y1: H / 2, x2: W, y2: H / 2 });
+      } else if (pattern === "hash") {
+        for (const f of [0.25, 0.5, 0.75]) {
+          lines.push({ x1: W * f, y1: 0, x2: W * f, y2: H });
+          lines.push({ x1: 0, y1: H * f, x2: W, y2: H * f });
+        }
+      } else {
+        const m = 64;
+        lines.push({ x1: m, y1: m, x2: W - m, y2: m });
+        lines.push({ x1: W - m, y1: m, x2: W - m, y2: H - m });
+        lines.push({ x1: W - m, y1: H - m, x2: m, y2: H - m });
+        lines.push({ x1: m, y1: H - m, x2: m, y2: m });
+      }
+      state.hazards.push({
+        id: state.nextId++,
+        kind: "STATIC_GRID",
+        pattern,
+        lines,
+        telegraph: opts.telegraph ?? 1.0,
+        maxTelegraph: opts.telegraph ?? 1.0,
+        active: opts.active ?? 2.1,
+        maxActive: opts.active ?? 2.1,
+        width: opts.radius ?? 18,
+        damage: opts.damage ?? 18,
+        color: "#7dd3fc"
+      });
+      sfx.charge();
+    }
+
+    function pointSegDistance(px, py, x1, y1, x2, y2) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const l2 = dx * dx + dy * dy || 1;
+      const t = clamp(((px - x1) * dx + (py - y1) * dy) / l2, 0, 1);
+      const x = x1 + t * dx;
+      const y = y1 + t * dy;
+      return Math.hypot(px - x, py - y);
+    }
+
+    function beamEnds(b) {
+      const len = Math.hypot(W, H) * 1.35;
+      return {
+        x1: b.x - Math.cos(b.angle) * len,
+        y1: b.y - Math.sin(b.angle) * len,
+        x2: b.x + Math.cos(b.angle) * len,
+        y2: b.y + Math.sin(b.angle) * len
+      };
+    }
+
+    function spawnRandom() {
+      const enabled = [...ui.autoChecks.querySelectorAll("input:checked")].map(i => i.value);
+      const pool = enabled.length ? enabled : ["BOMB", "DIAMOND", "SINGER_RING", "ORBITAL_POUNCER", "KINETIC_LANCE", "VOID_BEAM", "STATIC_GRID"];
+      const kind = pool[Math.floor(Math.random() * pool.length)];
+      if (kind === "BOMB") makeBomb(["green", "yellow", "red"][Math.floor(rand(0, 3))]);
+      if (kind === "DIAMOND") makeDiamond(["left", "right", "top", "bottom"][Math.floor(rand(0, 4))]);
+      if (kind === "SINGER_RING") makeSinger(Math.random() < 0.35);
+      if (kind === "ORBITAL_POUNCER") makePouncer(Math.random() < 0.55 ? "physical" : "void");
+      if (kind === "KINETIC_LANCE") makeBeam("KINETIC_LANCE", ["horizontal", "vertical", "targeted"][Math.floor(rand(0, 3))]);
+      if (kind === "VOID_BEAM") makeBeam("VOID_BEAM", ["horizontal", "vertical", "targeted", "sweep"][Math.floor(rand(0, 4))]);
+      if (kind === "STATIC_GRID") makeGrid(["cross", "hash", "perimeter"][Math.floor(rand(0, 3))]);
+    }
+
+    function updatePlayer(dt) {
+      const accel = state.partner === "Speed" ? 1380 : 1120;
+      const maxSpeed = state.partner === "Speed" ? 360 : 285;
+      let ax = 0;
+      let ay = 0;
+      if (keys.has("a") || keys.has("ArrowLeft")) ax -= 1;
+      if (keys.has("d") || keys.has("ArrowRight")) ax += 1;
+      if (keys.has("w") || keys.has("ArrowUp")) ay -= 1;
+      if (keys.has("s") || keys.has("ArrowDown")) ay += 1;
+      const len = Math.hypot(ax, ay);
+      if (len) {
+        ax /= len;
+        ay /= len;
+        player.vx += ax * accel * dt;
+        player.vy += ay * accel * dt;
+        player.facing = Math.atan2(ay, ax);
+      }
+      const speed = Math.hypot(player.vx, player.vy);
+      if (speed > maxSpeed) {
+        player.vx = player.vx / speed * maxSpeed;
+        player.vy = player.vy / speed * maxSpeed;
+      }
+      const friction = Math.pow(0.0008, dt);
+      player.vx *= friction;
+      player.vy *= friction;
+      player.x = clamp(player.x + player.vx * dt, player.r, W - player.r);
+      player.y = clamp(player.y + player.vy * dt, player.r, H - player.r);
+
+      player.shield = Math.max(0, player.shield - dt);
+      player.shieldCooldown = Math.max(0, player.shieldCooldown - dt);
+      player.vanish = Math.max(0, player.vanish - dt);
+      player.vanishCooldown = Math.max(0, player.vanishCooldown - dt);
+      player.hurtCooldown = Math.max(0, player.hurtCooldown - dt);
+
+      if (state.noCooldowns && (keys.has(" ") || keys.has("Spacebar"))) player.shield = 0.08;
+    }
+
+    function activateShield() {
+      if (state.paused) return;
+      if (state.noCooldowns || player.shieldCooldown <= 0) {
+        player.shield = state.partner === "Rock" ? 0.5 : 0.34;
+        player.shieldCooldown = state.noCooldowns ? 0 : 0.85;
+        addRipple(player.x, player.y, "#00e5ff", 55, 3, 0.18);
+        sfx.shield();
+      }
+    }
+
+    function activateVanish() {
+      if (state.paused) return;
+      const cooldown = state.partner === "Speed" ? 1.55 : 2.4;
+      if (state.noCooldowns || player.vanishCooldown <= 0) {
+        player.vanish = 0.86;
+        player.vanishCooldown = state.noCooldowns ? 0 : cooldown;
+        addParticle(player.x, player.y, "#d946ef", 36, 230, 0.65, 4);
+        addRipple(player.x, player.y, "#d946ef", 90, 5, 0.38);
+        sfx.vanish();
+      }
+    }
+
+    function updateHazards(dt) {
+      const scaled = dt * state.timeScale;
+      if (state.autoSpawn && !state.paused) {
+        state.autoTimer -= dt;
+        if (state.autoTimer <= 0) {
+          spawnRandom();
+          state.autoTimer += Number(ui.autoInterval.value);
+        }
+      }
+
+      for (const h of state.hazards) {
+        if (h.dead) continue;
+        if (h.kind === "BOMB") {
+          h.fuse -= scaled;
+          h.tick -= scaled;
+          if (h.tick <= 0) {
+            h.tick = Math.max(0.12, h.fuse * 0.16);
+            sfx.tick();
+            addRipple(h.x, h.y, h.color, 28 + (1 - h.fuse / h.maxFuse) * 42, 2, 0.16);
+          }
+          if (h.fuse <= 0) {
+            h.dead = true;
+            sfx.boom();
+            screenShake(10);
+            addParticle(h.x, h.y, h.color, 56, 420, 0.78, 4);
+            addRipple(h.x, h.y, h.color, h.radius, 8, 0.58);
+            if (dist(player, h) <= h.radius + player.r) damagePlayer(h.damage, h.x, h.y, "shieldOrVanish");
+          }
+        } else if (h.kind === "DIAMOND") {
+          h.telegraph -= scaled;
+          if (h.telegraph <= 0) {
+            h.x += h.vx * scaled;
+            h.y += h.vy * scaled;
+            if (Math.hypot(player.x - h.x, player.y - h.y) < player.r + h.radius) {
+              if (shieldBlocksFrom(h.x, h.y)) {
+                h.dead = true;
+                parryAt(h.x, h.y, h.color);
+              } else if (!vanishActive()) {
+                h.dead = true;
+                damagePlayer(h.damage, h.x, h.y, "none");
+              }
+            }
+            if (h.x < -120 || h.x > W + 120 || h.y < -120 || h.y > H + 120) h.dead = true;
+          }
+        } else if (h.kind === "SINGER_RING") {
+          h.telegraph -= scaled;
+          if (h.telegraph <= 0) {
+            h.radius -= h.speed * scaled;
+            const d = Math.hypot(player.x - h.x, player.y - h.y);
+            const inBand = Math.abs(d - h.radius) < h.width * 0.65 + player.r;
+            if (inBand && !h.hitOnce) {
+              const hurt = damagePlayer(h.damage, h.x, h.y, "voidVanish");
+              if (hurt) h.hitOnce = true;
+            }
+            if (h.radius <= h.endRadius) {
+              h.dead = true;
+              addRipple(h.x, h.y, h.color, h.endRadius + 36, 5, 0.42);
+            }
+          }
+        } else if (h.kind === "ORBITAL_POUNCER") {
+          if (h.phase === "orbit") {
+            const step = h.orbitSpeed * scaled;
+            h.orbitAngle += step;
+            h.orbitLeft -= Math.abs(step);
+            h.x = player.x + Math.cos(h.orbitAngle) * h.orbitRadius;
+            h.y = player.y + Math.sin(h.orbitAngle) * h.orbitRadius;
+            if (h.orbitLeft <= 0) {
+              h.phase = "windup";
+              h.windup = h.maxWindup;
+              h.targetAngle = angleTo(h, player);
+              sfx.charge();
+            }
+          } else if (h.phase === "windup") {
+            h.windup -= scaled;
+            if (h.windup <= 0) {
+              h.phase = "lunge";
+              h.vx = Math.cos(h.targetAngle) * h.speed;
+              h.vy = Math.sin(h.targetAngle) * h.speed;
+              sfx.fire();
+            }
+          } else {
+            h.x += h.vx * scaled;
+            h.y += h.vy * scaled;
+            if (Math.hypot(player.x - h.x, player.y - h.y) < player.r + h.radius) {
+              if (h.variant === "physical" && shieldBlocksFrom(h.x, h.y)) {
+                h.dead = true;
+                parryAt(h.x, h.y, h.color);
+              } else if (h.variant === "void" && vanishActive()) {
+                h.dead = true;
+                addParticle(h.x, h.y, h.color, 22, 300, 0.36, 3);
+              } else {
+                h.dead = true;
+                damagePlayer(h.damage, h.x, h.y, "none");
+              }
+            }
+            if (h.x < -160 || h.x > W + 160 || h.y < -160 || h.y > H + 160) h.dead = true;
+          }
+        } else if (h.kind === "KINETIC_LANCE" || h.kind === "VOID_BEAM") {
+          h.telegraph -= scaled;
+          if (h.telegraph <= 0) {
+            if (!h.fired) {
+              h.fired = true;
+              sfx.fire();
+              screenShake(h.kind === "VOID_BEAM" ? 7 : 5);
+            }
+            h.active -= scaled;
+            if (h.axis === "sweep") {
+              const t = 1 - h.active / h.maxActive;
+              h.angle = lerp(h.startAngle, h.endAngle, clamp(t, 0, 1));
+            }
+            const e = beamEnds(h);
+            const hit = pointSegDistance(player.x, player.y, e.x1, e.y1, e.x2, e.y2) <= h.width * 0.5 + player.r * 0.5;
+            if (hit) {
+              if (h.kind === "KINETIC_LANCE") damagePlayer(h.damage * scaled * 8, h.x, h.y, "lanceShield");
+              else damagePlayer(h.damage * scaled * 8, h.x, h.y, "voidVanish");
+            }
+            if (h.active <= 0) h.dead = true;
+          }
+        } else if (h.kind === "STATIC_GRID") {
+          h.telegraph -= scaled;
+          if (h.telegraph <= 0) {
+            h.active -= scaled;
+            for (const line of h.lines) {
+              if (pointSegDistance(player.x, player.y, line.x1, line.y1, line.x2, line.y2) <= h.width * 0.5 + player.r * 0.45) {
+                damagePlayer(h.damage * scaled * 4, (line.x1 + line.x2) / 2, (line.y1 + line.y2) / 2, "voidVanish");
+                break;
+              }
+            }
+            if (h.active <= 0) h.dead = true;
+          }
+        }
+      }
+
+      state.hazards = state.hazards.filter(h => !h.dead);
+    }
+
+    function updateEffects(dt) {
+      for (const p of state.particles) {
+        p.life -= dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= Math.pow(0.03, dt);
+        p.vy *= Math.pow(0.03, dt);
+      }
+      for (const r of state.ripples) r.life -= dt;
+      for (const t of state.damageTexts) {
+        t.life -= dt;
+        t.y -= 42 * dt;
+      }
+      state.particles = state.particles.filter(p => p.life > 0);
+      state.ripples = state.ripples.filter(r => r.life > 0);
+      state.damageTexts = state.damageTexts.filter(t => t.life > 0);
+    }
+
+    function drawBackground() {
+      ctx.fillStyle = "#050711";
+      ctx.fillRect(0, 0, W, H);
+      const grid = 54;
+      ctx.save();
+      ctx.lineWidth = 1;
+      for (let x = ((-player.x * 0.04) % grid); x < W; x += grid) {
+        ctx.strokeStyle = x % (grid * 4) < 1 ? "rgba(0,229,255,0.16)" : "rgba(124,221,255,0.055)";
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+      }
+      for (let y = ((-player.y * 0.04) % grid); y < H; y += grid) {
+        ctx.strokeStyle = y % (grid * 4) < 1 ? "rgba(217,70,239,0.14)" : "rgba(124,221,255,0.055)";
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(0,229,255,0.28)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(22, 22, W - 44, H - 44);
+      ctx.restore();
+    }
+
+    function drawHazards() {
+      for (const h of state.hazards) {
+        ctx.save();
+        if (h.kind === "BOMB") {
+          const pulse = 0.5 + 0.5 * Math.sin(now() * 18 + h.id);
+          const p = 1 - clamp(h.fuse / h.maxFuse, 0, 1);
+          ctx.strokeStyle = h.color;
+          ctx.globalAlpha = 0.18 + pulse * 0.2;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(h.x, h.y, lerp(24, h.radius, p), 0, TAU);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.translate(h.x, h.y);
+          ctx.rotate(now() * 2.5);
+          ctx.fillStyle = h.color;
+          ctx.shadowColor = h.color;
+          ctx.shadowBlur = 18 + p * 28;
+          ctx.beginPath();
+          ctx.roundRect(-12 - pulse * 2, -12 - pulse * 2, 24 + pulse * 4, 24 + pulse * 4, 5);
+          ctx.fill();
+          ctx.fillStyle = "#061018";
+          ctx.fillRect(-4, -17, 8, 6);
+          if (state.hitboxes) {
+            ctx.rotate(-now() * 2.5);
+            ctx.strokeStyle = "rgba(255,255,255,0.35)";
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(0, 0, h.radius, 0, TAU);
+            ctx.stroke();
+          }
+        } else if (h.kind === "DIAMOND") {
+          const active = h.telegraph <= 0;
+          ctx.strokeStyle = h.color;
+          ctx.fillStyle = h.color;
+          ctx.shadowColor = h.color;
+          ctx.shadowBlur = active ? 18 : 10;
+          if (!active) {
+            const alpha = 0.18 + 0.28 * (1 - h.telegraph / h.maxTelegraph);
+            ctx.globalAlpha = alpha;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            if (h.horizontal) { ctx.moveTo(0, h.y); ctx.lineTo(W, h.y); }
+            else { ctx.moveTo(h.x, 0); ctx.lineTo(h.x, H); }
+            ctx.stroke();
+          } else {
+            ctx.translate(h.x, h.y);
+            ctx.rotate(Math.PI / 4 + now() * 8);
+            ctx.fillRect(-h.radius, -h.radius, h.radius * 2, h.radius * 2);
+          }
+        } else if (h.kind === "SINGER_RING") {
+          const warning = h.telegraph > 0;
+          ctx.strokeStyle = h.color;
+          ctx.shadowColor = h.color;
+          ctx.shadowBlur = 24;
+          ctx.lineWidth = warning ? 5 : h.width;
+          ctx.globalAlpha = warning ? 0.18 + 0.36 * (1 - h.telegraph / h.maxTelegraph) : 0.7;
+          ctx.beginPath();
+          ctx.arc(h.x, h.y, warning ? Math.max(W, H) * 0.72 : h.radius, 0, TAU);
+          ctx.stroke();
+          ctx.globalAlpha = 0.14;
+          ctx.fillStyle = h.color;
+          ctx.beginPath();
+          ctx.arc(h.x, h.y, h.endRadius, 0, TAU);
+          ctx.fill();
+        } else if (h.kind === "ORBITAL_POUNCER") {
+          ctx.strokeStyle = h.color;
+          ctx.fillStyle = h.color;
+          ctx.shadowColor = h.color;
+          ctx.shadowBlur = 18;
+          if (h.phase === "orbit") {
+            ctx.globalAlpha = 0.2;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, h.orbitRadius, 0, TAU);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          } else if (h.phase === "windup") {
+            ctx.globalAlpha = 0.75;
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(h.x, h.y);
+            ctx.lineTo(h.x + Math.cos(h.targetAngle) * 160, h.y + Math.sin(h.targetAngle) * 160);
+            ctx.stroke();
+          }
+          ctx.translate(h.x, h.y);
+          ctx.rotate(h.orbitAngle || h.targetAngle);
+          ctx.beginPath();
+          ctx.moveTo(20, 0);
+          ctx.lineTo(-12, -13);
+          ctx.lineTo(-7, 0);
+          ctx.lineTo(-12, 13);
+          ctx.closePath();
+          ctx.fill();
+          if (state.hitboxes) {
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = "rgba(255,255,255,0.45)";
+            ctx.beginPath();
+            ctx.arc(0, 0, h.radius, 0, TAU);
+            ctx.stroke();
+          }
+        } else if (h.kind === "KINETIC_LANCE" || h.kind === "VOID_BEAM") {
+          const e = beamEnds(h);
+          const active = h.telegraph <= 0;
+          const pct = active ? 1 : 1 - h.telegraph / h.maxTelegraph;
+          ctx.strokeStyle = h.color;
+          ctx.shadowColor = h.color;
+          ctx.shadowBlur = active ? 26 : 16;
+          ctx.globalAlpha = active ? 0.85 : 0.18 + pct * 0.28;
+          ctx.lineWidth = active ? h.width : 5 + pct * 6;
+          ctx.beginPath();
+          ctx.moveTo(e.x1, e.y1);
+          ctx.lineTo(e.x2, e.y2);
+          ctx.stroke();
+          if (active) {
+            ctx.globalAlpha = 0.95;
+            ctx.lineWidth = Math.max(2, h.width * 0.18);
+            ctx.strokeStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.moveTo(e.x1, e.y1);
+            ctx.lineTo(e.x2, e.y2);
+            ctx.stroke();
+          }
+        } else if (h.kind === "STATIC_GRID") {
+          const active = h.telegraph <= 0;
+          const pct = active ? 1 : 1 - h.telegraph / h.maxTelegraph;
+          ctx.strokeStyle = h.color;
+          ctx.shadowColor = h.color;
+          ctx.shadowBlur = active ? 18 : 10;
+          ctx.globalAlpha = active ? 0.72 : 0.14 + pct * 0.28;
+          ctx.lineWidth = active ? h.width : 4 + pct * 4;
+          for (const line of h.lines) {
+            ctx.beginPath();
+            ctx.moveTo(line.x1, line.y1);
+            ctx.lineTo(line.x2, line.y2);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+      }
+    }
+
+    function drawPlayer() {
+      ctx.save();
+      if (vanishActive()) {
+        ctx.globalAlpha = 0.36 + 0.24 * Math.sin(now() * 36);
+        for (let i = 1; i <= 4; i++) {
+          ctx.fillStyle = `rgba(217,70,239,${0.11 / i})`;
+          ctx.beginPath();
+          ctx.arc(player.x - player.vx * 0.012 * i, player.y - player.vy * 0.012 * i, player.r + i * 4, 0, TAU);
+          ctx.fill();
+        }
+      }
+      ctx.translate(player.x, player.y);
+      ctx.rotate(player.facing);
+      ctx.shadowColor = vanishActive() ? "#d946ef" : "#00e5ff";
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = vanishActive() ? "#ddb5ff" : "#e8f6ff";
+      ctx.beginPath();
+      ctx.moveTo(20, 0);
+      ctx.lineTo(-12, -13);
+      ctx.lineTo(-7, 0);
+      ctx.lineTo(-12, 13);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#061018";
+      ctx.beginPath();
+      ctx.arc(5, 0, 4, 0, TAU);
+      ctx.fill();
+      if (shieldActive()) {
+        ctx.rotate(-player.facing);
+        ctx.strokeStyle = "#00e5ff";
+        ctx.shadowColor = "#00e5ff";
+        ctx.shadowBlur = 26;
+        ctx.lineWidth = 8;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.arc(0, 0, 42, player.facing - shieldArc() / 2, player.facing + shieldArc() / 2);
+        ctx.stroke();
+      }
+      if (state.hitboxes) {
+        ctx.rotate(shieldActive() ? 0 : -player.facing);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "rgba(255,255,255,0.55)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.r, 0, TAU);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawEffects() {
+      for (const r of state.ripples) {
+        const t = 1 - r.life / r.maxLife;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, r.life / r.maxLife);
+        ctx.strokeStyle = r.color;
+        ctx.shadowColor = r.color;
+        ctx.shadowBlur = 16;
+        ctx.lineWidth = r.width;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius * t, 0, TAU);
+        ctx.stroke();
+        ctx.restore();
+      }
+      for (const p of state.particles) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      for (const t of state.damageTexts) {
+        ctx.save();
+        ctx.globalAlpha = clamp(t.life / 0.8, 0, 1);
+        ctx.fillStyle = "#ff7a99";
+        ctx.font = "800 18px ui-sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(t.text, t.x, t.y);
+        ctx.restore();
+      }
+    }
+
+    function render() {
+      drawBackground();
+      drawHazards();
+      drawEffects();
+      drawPlayer();
+      if (state.paused) {
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,0.32)";
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = "#e8f6ff";
+        ctx.shadowColor = "#00e5ff";
+        ctx.shadowBlur = 18;
+        ctx.font = "900 54px ui-sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("PAUSED", W / 2, H / 2);
+        ctx.restore();
+      }
+    }
+
+    function updateUi() {
+      ui.timer.textContent = fmtTime(state.elapsed);
+      ui.best.textContent = fmtTime(state.best);
+      ui.hazardCount.textContent = String(state.hazards.length);
+      ui.fps.textContent = String(Math.round(state.fps));
+      ui.hpText.textContent = Math.round(player.hp) + " / " + Math.round(player.maxHp);
+      ui.hpFill.style.width = (player.hp / player.maxHp * 100).toFixed(1) + "%";
+      ui.shieldState.textContent = shieldActive() ? "Raised" : player.shieldCooldown <= 0 || state.noCooldowns ? "Ready" : player.shieldCooldown.toFixed(1) + "s";
+      ui.vanishState.textContent = vanishActive() ? "Phased" : player.vanishCooldown <= 0 || state.noCooldowns ? "Ready" : player.vanishCooldown.toFixed(1) + "s";
+      ui.partnerState.textContent = state.partner;
+      ui.modeState.textContent = state.paused ? "Paused" : state.godMode ? "God" : "Live";
+      ui.pauseBtn.textContent = state.paused ? "Resume" : "Pause";
+    }
+
+    let last = performance.now();
+    function loop(t) {
+      const rawDt = Math.min(0.05, (t - last) / 1000 || 0);
+      last = t;
+      state.fps = lerp(state.fps, 1 / Math.max(rawDt, 0.001), 0.08);
+      if (!state.paused) {
+        state.elapsed += rawDt;
+        if (state.elapsed > state.best) {
+          state.best = state.elapsed;
+          localStorage.setItem(STORAGE_KEY, String(state.best));
+        }
+        updatePlayer(rawDt);
+        updateHazards(rawDt);
+        updateEffects(rawDt);
+      }
+      render();
+      updateUi();
+      requestAnimationFrame(loop);
+    }
+
+    function clearAll() {
+      state.hazards.length = 0;
+      addRipple(W / 2, H / 2, "#00e5ff", Math.min(W, H) * 0.45, 6, 0.55);
+    }
+
+    function healFull() {
+      player.hp = player.maxHp;
+      player.healerUsed = false;
+      sfx.heal();
+      addParticle(player.x, player.y, "#35ff89", 18, 170, 0.5, 3);
+    }
+
+    function handleQuick(action) {
+      if (action === "bomb-green") makeBomb("green");
+      if (action === "bomb-yellow") makeBomb("yellow");
+      if (action === "bomb-red") makeBomb("red");
+      if (action === "bomb-cluster") for (let i = 0; i < 5; i++) makeBomb(["green", "yellow", "red"][i % 3], { pos: arenaPoint(130) });
+      if (action === "diamond-left") makeDiamond("left");
+      if (action === "diamond-right") makeDiamond("right");
+      if (action === "diamond-top") makeDiamond("top");
+      if (action === "diamond-bottom") makeDiamond("bottom");
+      if (action === "diamond-cross") ["left", "right", "top", "bottom"].forEach(s => makeDiamond(s));
+      if (action === "ring-normal") makeSinger(false);
+      if (action === "ring-fast") makeSinger(true);
+      if (action === "pouncer-physical") makePouncer("physical");
+      if (action === "pouncer-void") makePouncer("void");
+      if (action === "pouncer-dual") { makePouncer("physical"); makePouncer("void"); }
+      if (action === "lance-horizontal") makeBeam("KINETIC_LANCE", "horizontal");
+      if (action === "lance-vertical") makeBeam("KINETIC_LANCE", "vertical");
+      if (action === "lance-targeted") makeBeam("KINETIC_LANCE", "targeted");
+      if (action === "void-horizontal") makeBeam("VOID_BEAM", "horizontal");
+      if (action === "void-vertical") makeBeam("VOID_BEAM", "vertical");
+      if (action === "void-targeted") makeBeam("VOID_BEAM", "targeted");
+      if (action === "void-sweep") makeBeam("VOID_BEAM", "sweep");
+      if (action === "grid-cross") makeGrid("cross");
+      if (action === "grid-hash") makeGrid("hash");
+      if (action === "grid-perimeter") makeGrid("perimeter");
+    }
+
+    function spawnCustom() {
+      const opts = {
+        telegraph: Number(ui.telegraphInput.value),
+        speed: Number(ui.speedInput.value),
+        radius: Number(ui.radiusInput.value),
+        damage: Number(ui.damageInput.value)
+      };
+      const count = Number(ui.countInput.value);
+      const kind = ui.customKind.value;
+      const variant = ui.customVariant.value;
+      for (let i = 0; i < count; i++) {
+        if (kind === "BOMB") makeBomb(variant === "red" ? "red" : variant === "yellow" ? "yellow" : "green", opts);
+        if (kind === "DIAMOND") makeDiamond(["left", "right", "top", "bottom"][i % 4], opts);
+        if (kind === "SINGER_RING") makeSinger(variant === "sweep", opts);
+        if (kind === "ORBITAL_POUNCER") makePouncer(variant === "yellow" ? "void" : "physical", opts);
+        if (kind === "KINETIC_LANCE") makeBeam("KINETIC_LANCE", variant === "yellow" ? "vertical" : variant === "red" ? "targeted" : "horizontal", opts);
+        if (kind === "VOID_BEAM") makeBeam("VOID_BEAM", variant === "sweep" ? "sweep" : variant === "yellow" ? "vertical" : variant === "red" ? "targeted" : "horizontal", opts);
+        if (kind === "STATIC_GRID") makeGrid(variant === "sweep" ? "hash" : variant === "red" ? "perimeter" : "cross", opts);
+      }
+    }
+
+    function bindUi() {
+      document.addEventListener("pointerdown", ensureAudio, { once: false });
+      window.addEventListener("keydown", e => {
+        ensureAudio();
+        if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) e.preventDefault();
+        keys.add(e.key);
+        keys.add(e.code);
+        if (e.code === "Space" && !e.repeat) activateShield();
+        if ((e.key === "j" || e.key === "J") && !e.repeat) activateVanish();
+        if (e.key === "p" || e.key === "P") state.paused = !state.paused;
+      }, { passive: false });
+      window.addEventListener("keyup", e => {
+        keys.delete(e.key);
+        keys.delete(e.code);
+      });
+
+      ui.pauseBtn.addEventListener("click", () => { ensureAudio(); state.paused = !state.paused; });
+      ui.resetTimeBtn.addEventListener("click", () => { state.elapsed = 0; });
+      ui.refillBtn.addEventListener("click", healFull);
+      ui.healBtn.addEventListener("click", healFull);
+      ui.clearBtn.addEventListener("click", clearAll);
+      ui.collapseBtn.addEventListener("click", () => ui.panel.classList.add("collapsed"));
+      ui.openPanelBtn.addEventListener("click", () => ui.panel.classList.remove("collapsed"));
+
+      document.querySelectorAll(".tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+          document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+          document.querySelectorAll(".tab-page").forEach(p => p.classList.remove("active"));
+          tab.classList.add("active");
+          document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+        });
+      });
+
+      document.querySelectorAll("[data-action]").forEach(button => {
+        button.addEventListener("click", () => { ensureAudio(); handleQuick(button.dataset.action); });
+      });
+
+      ui.spawnCustomBtn.addEventListener("click", () => { ensureAudio(); spawnCustom(); });
+      ui.singleRandomBtn.addEventListener("click", () => { ensureAudio(); spawnRandom(); });
+      ui.autoToggle.addEventListener("click", () => {
+        ensureAudio();
+        state.autoSpawn = !state.autoSpawn;
+        state.autoTimer = 0;
+        ui.autoToggle.textContent = "Auto-Spawn: " + (state.autoSpawn ? "On" : "Off");
+      });
+      ui.autoInterval.addEventListener("input", () => {
+        ui.autoIntervalValue.textContent = Number(ui.autoInterval.value).toFixed(2) + "s";
+      });
+      ui.godMode.addEventListener("change", () => { state.godMode = ui.godMode.checked; });
+      ui.noCooldowns.addEventListener("change", () => { state.noCooldowns = ui.noCooldowns.checked; });
+      ui.hitboxes.addEventListener("change", () => { state.hitboxes = ui.hitboxes.checked; });
+      ui.timeScale.addEventListener("change", () => { state.timeScale = Number(ui.timeScale.value); });
+      ui.maxHpInput.addEventListener("input", () => {
+        const oldMax = player.maxHp;
+        player.maxHp = Number(ui.maxHpInput.value);
+        player.hp = clamp(player.hp + (player.maxHp - oldMax), 1, player.maxHp);
+        ui.maxHpValue.textContent = String(player.maxHp);
+      });
+      ui.partnerSelect.addEventListener("change", () => {
+        state.partner = ui.partnerSelect.value;
+        player.healerUsed = false;
+      });
+
+      const bindRange = (input, out, format) => {
+        const update = () => { out.textContent = format(input.value); };
+        input.addEventListener("input", update);
+        update();
+      };
+      bindRange(ui.telegraphInput, ui.telegraphValue, v => Number(v).toFixed(2) + "s");
+      bindRange(ui.speedInput, ui.speedValue, v => String(Math.round(Number(v))));
+      bindRange(ui.radiusInput, ui.radiusValue, v => String(Math.round(Number(v))));
+      bindRange(ui.damageInput, ui.damageValue, v => String(Math.round(Number(v))));
+      bindRange(ui.countInput, ui.countValue, v => String(Math.round(Number(v))));
+    }
+
+    resize();
+    bindUi();
+    window.addEventListener("resize", resize);
+    updateUi();
+    requestAnimationFrame(loop);
+
+    setTimeout(() => {
+      makeBomb("green", { pos: { x: W * 0.35, y: H * 0.44 } });
+      makeDiamond("left");
+      makePouncer("physical");
+    }, 250);
+  })();
+  </script>
+</body>
+</html>
