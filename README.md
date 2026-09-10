@@ -46,16 +46,3 @@ A standalone, single-file HTML5 Canvas combat sandbox and playtesting lab for **
 
 ---
 
-## 🚀 GitHub Pages Deployment
-
-This repository is ready for immediate deployment on GitHub Pages:
-
-### Option 1: Deploy from Branch (Recommended)
-1. Go to your repository **Settings** on GitHub.
-2. Under **Code and automation**, click **Pages**.
-3. Under **Build and deployment** > **Source**, choose **Deploy from a branch**.
-4. Select branch `main` (or your preferred branch) and `/ (root)`, then click **Save**.
-5. Your game will be live at `https://<username>.github.io/<repository-name>/`.
-
-### Option 2: Deploy via GitHub Actions
-A GitHub Actions workflow is included at `.github/workflows/deploy-pages.yml` to automatically publish `index.html` on every push to `main`.
